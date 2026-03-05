@@ -106,9 +106,13 @@ function resetState() {
     resultTimer: 0,
     batSwing: 0, batSwinging: false,
     ballAnim: null,
+    ballSpin: 0,         // cumulative rotation angle for seam spin
     confetti: [],
     flashMsg: '', flashColor: P.gold, flashTimer: 0,
     crowdT: 0,
+    crowdExcited: 0,     // 0-1, peaks on HR, fades out
+    contactFlash: 0,     // brief white flash at contact point
+    contactX: 0, contactY: 0,
   };
 }
 
@@ -166,9 +170,12 @@ function txt(t,x,y,c,sz,align) {
 }
 function txtC(t,x,y,c,sz) { txt(t,x,y,c,sz,'center'); }
 
-// ─── Perspective helpers ──────────────────────────────────────
-// Interpolate between two points by fraction t
+// ─── Math helpers ─────────────────────────────────────────────
 function lerp(a,b,t){ return a+(b-a)*t; }
+// Smooth swing easing: slow start, fast middle, slow end
+function easeInOut(t){ return t<0.5 ? 2*t*t : -1+(4-2*t)*t; }
+// Ease out for snappy feel
+function easeOut(t){ return 1-(1-t)*(1-t); }
 // Given a depth fraction d (0=wall, 1=plate), return y coordinate
 function fieldY(d){ return lerp(F.trackBot, F.plt.y, d); }
 // Given a depth fraction and a lateral offset at plate, return x
@@ -227,14 +234,26 @@ function drawBleachers() {
       $(margin+2+c*seatW, udY+5+r*10, seatW-1, 7, sc);
     }
   }
-  // Upper crowd heads (bobbing)
+  // Upper crowd heads (bobbing; jump up on HR)
+  const excite = state.crowdExcited || 0;
   for(let i=0;i<24;i++) {
+    const normalBob = (Math.sin(state.crowdT*0.003+i*1.1)>0.6) ? -2 : 0;
+    // Excited: big upward jump, staggered by index
+    const exciteBob = excite > 0
+      ? -Math.max(0, Math.sin((state.crowdT*0.012 + i*0.4))) * 12 * excite
+      : 0;
     const hx=margin+4+i*((LW-margin*2-8)/24);
-    const bob=(Math.sin(state.crowdT*0.003+i*1.1)>0.6)?-2:0;
-    const hy=udY+2+bob;
+    const hy=udY+2+normalBob+exciteBob;
     const skinT=[P.skin,P.skinDk,'#E0A870','#C07840','#F8D0B8'][i%5];
-    $(hx,hy,5,5,skinT);
-    $(hx-1,hy-3,7,3,[P.blue,P.red,P.shtY,P.shtG][i%4]); // hats
+    $(hx,~~hy,5,5,skinT);
+    $(hx-1,~~hy-3,7,3,[P.blue,P.red,P.shtY,P.shtG][i%4]);
+    // Excited: tiny raised arms
+    if(excite > 0.3){
+      ctx.fillStyle=[P.skin,P.skinDk][i%2];
+      const armA = Math.sin(state.crowdT*0.015+i)*0.5*excite;
+      $(hx-3, ~~hy-1, 2, 4, [P.skin,P.skinDk][i%2]); // L arm up
+      $(hx+6, ~~hy-1, 2, 4, [P.skin,P.skinDk][i%2]); // R arm up
+    }
   }
 
   // ── Lower deck / bleachers ────────────────────────────────
@@ -248,14 +267,21 @@ function drawBleachers() {
       $( 10+c*((LW-20)/cols), ldY+4+r*11, (LW-20)/cols-1, 8, sc);
     }
   }
-  // Lower crowd heads
+  // Lower crowd heads (bob + HR excitement)
   for(let i=0;i<22;i++) {
+    const normalBob = (Math.sin(state.crowdT*0.004+i*0.85+1)>0.65) ? -2 : 0;
+    const exciteBob = excite > 0
+      ? -Math.max(0, Math.sin((state.crowdT*0.014 + i*0.5))) * 10 * excite
+      : 0;
     const hx=12+i*((LW-24)/22);
-    const bob=(Math.sin(state.crowdT*0.004+i*0.85+1)>0.65)?-2:0;
-    const hy=ldY+bob;
+    const hy=ldY+normalBob+exciteBob;
     const skinT=[P.skin,P.skinDk,'#E0B080','#D09060'][i%4];
-    $(hx,hy,6,6,skinT);
-    $(hx-1,hy-3,8,3,[P.blue,P.red,P.white,P.shtG][i%4]);
+    $(hx,~~hy,6,6,skinT);
+    $(hx-1,~~hy-3,8,3,[P.blue,P.red,P.white,P.shtG][i%4]);
+    if(excite > 0.3){
+      $(hx-2, ~~hy, 2, 5, [P.skin,P.skinDk][i%2]);
+      $(hx+6, ~~hy, 2, 5, [P.skin,P.skinDk][i%2]);
+    }
   }
 }
 
@@ -563,96 +589,264 @@ function drawPitcher(pitchT) {
   ctx.restore();
 }
 
-// ─── Batter (right-handed, jersey #3) in foreground ──────────
+// ─── Batter (right-handed, jersey #3) full figure from behind ─
+// Camera is slightly above & behind home plate, batter faces pitcher.
+// From this angle we see the player's back.
+// RHB: right shoulder (3B side) = screen LEFT; left (1B) = screen RIGHT.
 function drawBatter() {
-  // Right-handed batter: right side of screen foreground
-  // We see partial shoulder/arm + bat from behind/side
-  const bx = LW - 32, by = LH - 58;
+  // Anchor: foot/hip center
+  const ax = 158, ay = LH - 18;
 
-  // Bat swing state
-  const swingA = state.batSwinging
-    ? lerp(-0.9, 1.5, Math.min(1, state.batSwing * 1.1))
-    : -0.8; // resting
+  // Bat swing: rest loaded (-0.5 rad = upper-left / right-shoulder loaded),
+  // sweeps clockwise through contact (~0.3) to follow-through (1.55).
+  const sf   = state.batSwinging ? easeInOut(Math.min(1, state.batSwing)) : 0;
+  const batA = lerp(-0.52, 1.58, sf);
 
-  // ── Jersey sleeve + shoulder (partial) ───────────────────
-  $(bx - 10, by - 10, 36, 28, P.blue);       // sleeve body
-  $(bx - 8,  by - 8,  32, 24, P.white);      // white pinstripe base
-  // Pinstripes
-  for(let ps=0;ps<5;ps++) $(bx-6+ps*7, by-8, 2, 24, P.blue);
-  // Jersey number "3" visible on sleeve
-  txtC('3', bx+8, by+14, P.blue, 11);
-  // Shoulder trim
-  $(bx-10, by-10, 36, 4, P.blue);
+  // Slight hip/body rotation during swing
+  const lean = lerp(0, 0.06, sf);
 
-  // ── Arm (skin) ───────────────────────────────────────────
-  $(bx-2, by+14, 10, 18, P.skin);
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(lean);
+
+  // ── Ground shadow ────────────────────────────────────────
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(2,-2,28,7,0,0,Math.PI*2); ctx.fill();
+
+  // ── Cleats ───────────────────────────────────────────────
+  // Left (screen-left = batter's right / 3B side): rear foot, slightly bigger
+  $(-24,-14, 24, 9, '#141414');   // sole
+  $(-22,-20, 20, 8, '#222');      // upper
+  $(-20,-22, 16, 4, P.white);     // accent stripe
+  $(-22,-13,  3, 3, '#555');      // cleat stud
+  $(-16,-13,  3, 3, '#555');
+  $(-10,-13,  3, 3, '#555');
+  // Right (screen-right = batter's left / 1B side): stride foot
+  $(  4,-12, 24, 8, '#141414');
+  $(  6,-17, 20, 7, '#222');
+  $(  8,-19, 16, 4, P.white);
+  $(  6,-11,  3, 3, '#555');
+  $( 12,-11,  3, 3, '#555');
+  $( 18,-11,  3, 3, '#555');
+
+  // ── Socks (white with blue stirrups) ─────────────────────
+  $(-24,-50, 22, 36, P.white);    // L sock
+  $(  4,-48, 22, 36, P.white);    // R sock
+  $(-22,-38, 18,  4, P.blue);     // L stirrup
+  $(  6,-36, 18,  4, P.blue);     // R stirrup
+  $(-22,-32, 18,  3, P.blue);
+  $(  6,-30, 18,  3, P.blue);
+
+  // ── Pants (white baseball pants) ─────────────────────────
+  $(-26,-90, 24, 42, P.white);    // L leg
+  $(  4,-88, 24, 40, P.white);    // R leg
+  $( -4,-89, 10, 40, P.white);    // center fill
+  // Seam/crease shading
+  $(-26,-88,  2, 38, '#D8D4C8');
+  $( 26,-86,  2, 36, '#D8D4C8');
+  $( -6,-88,  2, 38, '#E4E0D4');
+  $(  4,-86,  2, 36, '#E4E0D4');
+
+  // ── Belt ─────────────────────────────────────────────────
+  $(-28,-95, 58,  5, '#1A1A1A');
+  // Buckle
+  $( -5,-97,  10, 8, '#5A5A5A');
+  $( -3,-96,   6, 6, P.gold);
+  $( -1,-95,   2, 4, '#8A6800');
+
+  // ── Jersey back (white Dodger pinstripes) ─────────────────
+  // Main body
+  $(-28,-170, 58, 76, P.white);
+  // Pinstripes (thin blue lines every 8px)
+  for(let p=-26; p<28; p+=8){
+    $(p,-170, 2, 76, '#9AA8E0');
+  }
+  // Side seams (solid blue)
+  $(-30,-170, 4, 76, P.blue);
+  $( 28,-170, 4, 76, P.blue);
+  // Jersey hem
+  $(-28,-97, 58,  3, '#D8D4C0');
+  // Shoulder yoke (blue panel across top)
+  $(-30,-170, 62, 14, P.blue);
+  $(-28,-158,  6, 10, P.blue);   // L sleeve top
+  $( 24,-158,  6, 10, P.blue);   // R sleeve top
+
+  // Number "3" on back — big and clear
+  ctx.fillStyle = P.blue;
+  ctx.font = 'bold 36px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('3', 1, -120);
+
+  // ── Shoulders & upper arms ───────────────────────────────
+  // Left upper arm (3B side, larger / closer to camera)
+  $(-40,-162, 16, 40, P.skin);
+  $(-38,-162,  3, 38, P.blue);   // sleeve edge
+  // Right upper arm (1B side)
+  $( 26,-160, 16, 38, P.skin);
+  $( 38,-162,  3, 36, P.blue);   // sleeve edge
+
+  // ── Forearms (foreshortened — angled forward) ────────────
+  // They come forward and inward to grip the bat
+  $(-36,-126, 12, 20, P.skin);   // L forearm
+  $( 26,-124, 12, 18, P.skin);   // R forearm
 
   // ── Batting gloves ────────────────────────────────────────
-  $(bx-4, by+28, 14, 8, P.navy);
-  // Grip point
-  const gripX=bx+4, gripY=by+34;
+  $(-38,-110, 14, 12, P.navy);   // L glove
+  $( 26,-108, 14, 12, P.navy);   // R glove
+  // Velcro strap
+  $(-36,-114,  9,  2, '#606090');
+  $( 28,-112,  9,  2, '#606090');
+  // Finger padding
+  $(-37,-106,  4,  6, '#383860');
+  $(-32,-106,  4,  6, '#383860');
+  $( 27,-104,  4,  6, '#383860');
+  $( 32,-104,  4,  6, '#383860');
 
-  // ── Bat ───────────────────────────────────────────────────
+  // ── Helmet (back-view, RHB: ear flap on screen-LEFT = 3B side) ─
+  // Dome
+  $(-22,-222, 46, 30, P.blue);   // lower dome
+  $(-18,-234, 38, 14, P.blue);   // mid dome
+  $(-12,-242, 26, 10, P.blue);   // upper dome
+  // Inner shadow for depth
+  $(-18,-220, 38, 26, P.navy);
+  $(-14,-232, 30, 12, P.navy);
+  // Ear flap (screen-LEFT = batter's right ear, 3B facing, correct for RHB)
+  $(-32,-212, 12, 32, P.blue);
+  $(-30,-208, 10, 26, P.navy);
+  $(-30,-196,  8, 10, P.blue);   // bottom curve of flap
+  // Brim (faces toward pitcher = upper-right in back view)
+  $( -4,-192, 22,  5, P.navy);
+  $(  6,-196, 12,  5, P.navy);
+  // Vent strips
+  $(-10,-222,  3, 20, '#4858B0');
+  $(  6,-222,  3, 20, '#4858B0');
+  // Button on crown
+  $( -4,-244,  8,  5, P.navy);
+  $(  0,-246,  2,  2, P.white);  // pin dot
+
+  // ── Neck ─────────────────────────────────────────────────
+  $(-8,-195, 17, 20, P.skin);
+  // Jersey collar
+  $(-10,-174, 22,  5, P.blue);
+
+  // ── Bat (grip from screen-left, bat loads behind right shoulder) ─
+  // Grip origin: between hands where they meet
+  const gx = -14, gy = -108;
+
+  // Wrist/hands wrapping the grip
+  $( gx-6, gy-6, 22, 12, P.skin);   // top hand (L for RHB)
+  $( gx-5, gy+4, 20, 10, P.navy);   // bottom hand glove (R for RHB)
+
   ctx.save();
-  ctx.translate(gripX, gripY);
-  ctx.rotate(swingA);
+  ctx.translate(gx, gy);
+  ctx.rotate(batA);
+  ctx.lineCap = 'round';
 
-  // Handle (thin end, pointing up when at rest)
-  ctx.strokeStyle='#5D3A1A'; ctx.lineWidth=4; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-48); ctx.stroke();
-  // Taper to barrel
-  ctx.lineWidth=7;
-  ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(0,-64); ctx.stroke();
-  // Barrel (fat end)
-  ctx.lineWidth=12;
-  ctx.strokeStyle='#7B4A22';
-  ctx.beginPath(); ctx.moveTo(0,-60); ctx.lineTo(0,-76); ctx.stroke();
-  // Barrel end cap
-  ctx.fillStyle='#8D5530';
-  ctx.beginPath(); ctx.arc(0,-76,7,0,Math.PI*2); ctx.fill();
-  // Highlight stripe on barrel
-  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(-3,-60); ctx.lineTo(-3,-74); ctx.stroke();
-  // Grip tape
-  ctx.strokeStyle='#101010'; ctx.lineWidth=3;
-  for(let g=0;g<5;g++) {
-    const gy = -g*5 - 4;
-    ctx.beginPath(); ctx.moveTo(-4,gy); ctx.lineTo(4,gy); ctx.stroke();
+  // Knob
+  ctx.fillStyle='#3C2010';
+  ctx.beginPath(); ctx.arc(0,4,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5A3018';
+  ctx.beginPath(); ctx.arc(0,2,4,0,Math.PI*2); ctx.fill();
+
+  // Grip tape (black, with wrapped texture rings)
+  ctx.strokeStyle='#1A1010'; ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(0,2); ctx.lineTo(0,-26); ctx.stroke();
+  ctx.strokeStyle='#2A2020'; ctx.lineWidth=1;
+  for(let g=0; g<7; g++){
+    ctx.beginPath();
+    ctx.moveTo(-4, -g*4-1);
+    ctx.lineTo( 4, -g*4-1);
+    ctx.stroke();
   }
 
-  ctx.restore();
+  // Handle (natural wood, tapered)
+  ctx.strokeStyle='#6B3A18'; ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(0,-24); ctx.lineTo(0,-58); ctx.stroke();
 
-  // Helmet (right-handed: ear flap on left / 3B side)
-  $(bx-14, by-44, 28, 26, P.blue); // helmet shell
-  $(bx-14, by-34, 10, 14, P.blue); // ear flap
-  // Face opening
-  $(bx-4,  by-40, 20, 18, P.skin);
-  // Button on top
-  $(bx+5,  by-46, 4,  4,  P.navy);
+  // Taper zone
+  ctx.strokeStyle='#7D4A22'; ctx.lineWidth=10;
+  ctx.beginPath(); ctx.moveTo(0,-55); ctx.lineTo(0,-72); ctx.stroke();
+
+  // Barrel (wide, rounded)
+  ctx.strokeStyle='#9B6238'; ctx.lineWidth=17;
+  ctx.beginPath(); ctx.moveTo(0,-70); ctx.lineTo(0,-94); ctx.stroke();
+  // Second pass slightly lighter for depth
+  ctx.strokeStyle='#A87248'; ctx.lineWidth=13;
+  ctx.beginPath(); ctx.moveTo(-1,-71); ctx.lineTo(-1,-93); ctx.stroke();
+
+  // End cap
+  ctx.fillStyle='#B08050';
+  ctx.beginPath(); ctx.arc(0,-94,10,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#C09060';
+  ctx.beginPath(); ctx.arc(-1,-95,7,0,Math.PI*2); ctx.fill();
+
+  // Barrel highlight (sheen down one side)
+  ctx.strokeStyle='rgba(255,255,255,0.38)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-5,-72); ctx.lineTo(-5,-92); ctx.stroke();
+
+  // Wood grain lines
+  ctx.strokeStyle='rgba(80,40,10,0.30)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(3,-72); ctx.lineTo(3,-90); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6,-76); ctx.lineTo(6,-88); ctx.stroke();
+
+  // Brand stamp on barrel
+  $(-5,-82, 10, 2, 'rgba(60,30,10,0.35)');
+
+  ctx.restore(); // bat
+  ctx.restore(); // body
 }
 
-// ─── Baseball ─────────────────────────────────────────────────
-function drawBall(x, y, size) {
+// ─── Baseball (with spin animation) ──────────────────────────
+function drawBall(x, y, size, spin) {
   const r  = Math.max(1.5, size/2);
-  const ix = ~~(x - r), iy = ~~(y - r), id = ~~(r*2);
-  // Drop shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath(); ctx.ellipse(~~x+3, ~~(y+r*0.6), ~~(r*0.9), ~~(r*0.4), 0, 0, Math.PI*2); ctx.fill();
+  const s  = spin || 0;
+  // Drop shadow (ellipse, offset)
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath(); ctx.ellipse(~~x+4, ~~(y+r*0.7), ~~(r*0.85), ~~(r*0.38), 0, 0, Math.PI*2); ctx.fill();
   // Ball body
   ctx.fillStyle = P.offWht;
-  ctx.beginPath(); ctx.arc(~~x, ~~y, ~~r, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle='rgba(180,180,160,0.6)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(~~x, ~~y, Math.ceil(r), 0, Math.PI*2); ctx.fill();
+  // Subtle edge shadow
+  ctx.strokeStyle='rgba(160,155,140,0.55)'; ctx.lineWidth=1;
   ctx.stroke();
-  // Seams (only when big enough)
-  if(r >= 5) {
-    ctx.strokeStyle='#CC6060'; ctx.lineWidth=Math.max(1,~~(r*0.12));
-    // Left seam curve
-    ctx.beginPath(); ctx.arc(~~(x-r*0.25), ~~y, ~~(r*0.55), 0.2, 1.5); ctx.stroke();
-    // Right seam curve
-    ctx.beginPath(); ctx.arc(~~(x+r*0.25), ~~y, ~~(r*0.55), Math.PI+0.2, Math.PI+1.5); ctx.stroke();
+  // Seams (spin-driven: offset arcs rotate with s)
+  if(r >= 4) {
+    const sw = Math.max(1, ~~(r*0.13));
+    ctx.strokeStyle='#CC5858'; ctx.lineWidth=sw;
+    // Two C-curve seams, rotated by spin angle
+    ctx.save();
+    ctx.translate(~~x, ~~y);
+    ctx.rotate(s);
+    const sr = ~~(r*0.62);
+    // seam 1
+    ctx.beginPath(); ctx.arc(-~~(r*0.22), 0, sr, 0.25, 1.45); ctx.stroke();
+    ctx.beginPath(); ctx.arc( ~~(r*0.22), 0, sr, Math.PI+0.25, Math.PI+1.45); ctx.stroke();
+    ctx.restore();
   }
-  // Specular highlight
-  $(ix+~~(r*0.2), iy+~~(r*0.15), Math.max(2,~~(r*0.28)), Math.max(1,~~(r*0.2)), 'rgba(255,255,255,0.8)');
+  // Specular highlight (fixed, not spinning)
+  $(~~x - ~~(r*0.55) + ~~(r*0.18), ~~y - ~~(r*0.52),
+    Math.max(2,~~(r*0.3)), Math.max(1,~~(r*0.22)), 'rgba(255,255,255,0.85)');
+}
+
+// ─── Contact flash effect ─────────────────────────────────────
+function drawContactFlash() {
+  if(state.contactFlash <= 0) return;
+  const a = state.contactFlash;
+  const r = (1-a) * 32 + 8;
+  ctx.globalAlpha = a * 0.9;
+  ctx.fillStyle = '#FFFFC0';
+  ctx.beginPath(); ctx.arc(~~state.contactX, ~~state.contactY, ~~r, 0, Math.PI*2); ctx.fill();
+  // Star burst lines
+  ctx.strokeStyle = '#FFE040'; ctx.lineWidth = 2;
+  for(let i=0; i<6; i++){
+    const a2 = (i/6)*Math.PI*2;
+    const d1 = r*0.6, d2 = r*1.2;
+    ctx.beginPath();
+    ctx.moveTo(state.contactX+Math.cos(a2)*d1, state.contactY+Math.sin(a2)*d1);
+    ctx.lineTo(state.contactX+Math.cos(a2)*d2, state.contactY+Math.sin(a2)*d2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 }
 
 // ─── Hit ball trajectory ──────────────────────────────────────
@@ -713,24 +907,60 @@ function drawConfetti(dt) {
 
 // ─── HUD ──────────────────────────────────────────────────────
 function drawHUD() {
-  // Top bar
-  $(0, 0, LW, 22, P.hudBg);
-  $(0, 21, LW, 2, P.gold);
-  // Score
-  txt('SCORE', 5, 10, P.gold, 7);
-  txt(String(state.score).padStart(3,'0'), 5, 20, P.white, 10);
-  // Pitch result (center)
-  if(state.flashTimer>0) {
-    const a=Math.min(1, state.flashTimer/250);
-    ctx.globalAlpha=a;
-    txtC(state.flashMsg, LW/2, 15, state.flashColor, 9);
-    ctx.globalAlpha=1;
-  } else {
-    txtC(state.phase==='pitching'?'SWING!':'', LW/2, 15, P.white, 8);
+  // ── Top bar background ────────────────────────────────────
+  $(0, 0, LW, 26, P.hudBg);
+  $(0, 25, LW, 2, P.gold);   // gold bottom border
+  // Side accents
+  $(0, 0, 3, 26, P.blue);
+  $(LW-3, 0, 3, 26, P.blue);
+
+  // ── Score (left) ──────────────────────────────────────────
+  txt('SCORE', 6, 9, P.gold, 7);
+  // Score value with leading zeros, white
+  const scoreStr = String(state.score).padStart(3,'0');
+  txt(scoreStr, 6, 22, P.white, 11);
+
+  // ── HR dots (left of center) ──────────────────────────────
+  // Small star/diamond for each home run
+  const dotStartX = 76;
+  txt('HR', dotStartX, 9, P.gold, 7);
+  for(let d=0; d<state.homeRuns; d++){
+    ctx.fillStyle = P.gold;
+    const dx = dotStartX + d*9;
+    ctx.beginPath(); ctx.arc(dx+3, 17, 4, 0, Math.PI*2); ctx.fill();
   }
-  // Pitches
-  txt('PITCHES', LW-56, 10, P.gold, 7);
-  txt(String(state.pitchesLeft).padStart(2,' '), LW-38, 20, P.white, 10);
+
+  // ── Center: flash message or pitch indicator ───────────────
+  if(state.flashTimer > 0){
+    const fa = Math.min(1, state.flashTimer / 200);
+    ctx.globalAlpha = fa;
+    // Shadow
+    ctx.fillStyle = P.black;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(state.flashMsg, LW/2+1, 18);
+    // Colored text
+    ctx.fillStyle = state.flashColor;
+    ctx.fillText(state.flashMsg, LW/2, 17);
+    ctx.globalAlpha = 1;
+  } else if(state.phase === 'pitching'){
+    // Blinking SWING during pitch
+    if(((Date.now()/350|0)%2)===0){
+      txtC('SWING!', LW/2, 18, '#FF4040', 10);
+    }
+  }
+
+  // ── Pitches remaining (right) ─────────────────────────────
+  txt('PITCHES', LW-60, 9, P.gold, 7);
+  const pStr = String(state.pitchesLeft).padStart(2,'0');
+  txt(pStr, LW-46, 22, P.white, 11);
+  // Pitch pip row
+  for(let p=0; p<TOTAL_PITCHES; p++){
+    const px2 = LW-3 - p*5 - 4;
+    const used = p >= state.pitchesLeft;
+    ctx.fillStyle = used ? '#303030' : P.gold;
+    ctx.fillRect(~~px2, 2, 3, 3);
+  }
 }
 
 // ─── Timing meter ────────────────────────────────────────────
@@ -780,6 +1010,29 @@ function drawScanlines() {
   for(let y=0;y<LH;y+=2) ctx.fillRect(0,y,LW,1);
 }
 
+// ─── Big hit result popup (drawn over field, below HUD) ───────
+function drawResultPopup() {
+  if(state.flashTimer <= 0 || state.phase !== 'result') return;
+  const a = Math.min(1, state.flashTimer / 400);
+  const scale = lerp(0.6, 1.0, easeOut(1 - state.flashTimer / 950));
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.translate(LW/2, LH*0.38);
+  ctx.scale(scale, scale);
+  // Dark backing pill
+  const tw = state.flashMsg.length * 7.5;
+  $(~~(-tw*0.5 - 8), -16, ~~(tw+16), 26, 'rgba(0,0,0,0.65)');
+  // Shadow text
+  ctx.fillStyle = P.black;
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(state.flashMsg, 2, 2);
+  // Coloured text
+  ctx.fillStyle = state.flashColor;
+  ctx.fillText(state.flashMsg, 0, 0);
+  ctx.restore();
+}
+
 // ─── Frame render ─────────────────────────────────────────────
 function drawFrame(dt) {
   ctx.clearRect(0,0,LW,LH);
@@ -807,13 +1060,13 @@ function drawFrame(dt) {
     drawPitcher(state.phase==='pitching' ? state.pitchT : 0);
   }
 
-  // Live ball (during pitch)
+  // Live ball (during pitch) — grows and spins as it approaches
   if(state.phase==='pitching' && !state.swung) {
     const bx = lerp(BALL_START.x, BALL_END.x, state.pitchT);
     const by = lerp(BALL_START.y, BALL_END.y, state.pitchT)
               - Math.sin(state.pitchT*Math.PI)*18; // arc
     const bs = lerp(BALL_SIZE_S, BALL_SIZE_L, state.pitchT*state.pitchT);
-    drawBall(bx, by, bs);
+    drawBall(bx, by, bs, state.ballSpin);
   }
 
   // Hit ball animation
@@ -822,15 +1075,21 @@ function drawFrame(dt) {
     const {pts,t}=state.ballAnim;
     const idx=Math.min(pts.length-1, ~~(t*pts.length));
     const pt=pts[idx];
-    drawBall(pt.x, pt.y, Math.max(3, pt.sz*(1-t*0.3)));
+    drawBall(pt.x, pt.y, Math.max(3, pt.sz*(1-t*0.3)), state.ballSpin);
   }
+
+  // Contact flash effect (brief sparkle when bat meets ball)
+  drawContactFlash();
 
   drawConfetti(dt);
 
   // Batter foreground (always visible)
   drawBatter();
 
-  // HUD (drawn on top)
+  // Big result popup (over field, below HUD)
+  drawResultPopup();
+
+  // HUD (drawn on top of everything)
   drawHUD();
 
   // Timing meter (only during pitch)
@@ -850,6 +1109,7 @@ function startPitch() {
   if(state.pitchesLeft<=0){ endGame(); return; }
   state.phase='pitching'; state.pitchT=0; state.swung=false;
   state.batSwing=0; state.batSwinging=false; state.ballAnim=null;
+  state.ballSpin=0; state.contactFlash=0;
   sndPitch();
 }
 
@@ -891,7 +1151,21 @@ function applyOutcome(outcome) {
   state.flashMsg=fi.msg; state.flashColor=fi.c; state.flashTimer=950;
 
   if(outcome==='miss') sndMiss();
-  else { sndCrack(); if(outcome==='hr'){ setTimeout(sndHR,200); spawnConfetti(); } }
+  else {
+    sndCrack();
+    // Contact flash at ball position
+    state.contactFlash = 1;
+    state.contactX = lerp(BALL_START.x, BALL_END.x, state.pitchT);
+    state.contactY = lerp(BALL_START.y, BALL_END.y, state.pitchT)
+                   - Math.sin(state.pitchT*Math.PI)*18;
+    if(outcome==='hr'){
+      setTimeout(sndHR,200);
+      spawnConfetti();
+      state.crowdExcited = 1;   // crowd goes wild!
+    } else if(outcome==='deep'){
+      state.crowdExcited = 0.5;
+    }
+  }
 
   if(outcome!=='miss') buildTrajectory(outcome);
 
@@ -933,17 +1207,23 @@ function loop(ts) {
 
   if(state.phase==='pitching') {
     state.pitchT=Math.min(0.97, state.pitchT+dt/PITCH_DURATION);
+    // Ball spins faster as it approaches (backspin)
+    state.ballSpin += dt * 0.008 * (1 + state.pitchT * 3);
     if(state.pitchT>=0.96 && !state.swung) doAutoMiss();
   }
 
   if(state.phase==='result') {
     state.resultTimer-=dt;
     if(state.batSwinging) {
-      state.batSwing=Math.min(1, state.batSwing+dt*0.0042);
+      // Snappy start, smooth follow-through
+      const speed = lerp(0.006, 0.0028, Math.min(1, state.batSwing));
+      state.batSwing=Math.min(1, state.batSwing+speed*dt);
       if(state.batSwing>=1) state.batSwinging=false;
     }
     if(state.ballAnim) {
       state.ballAnim.t=Math.min(1, state.ballAnim.t+state.ballAnim.speed*(dt/16));
+      // Ball spins during flight (topspin/backspin)
+      state.ballSpin += dt * 0.018;
     }
     if(state.resultTimer<=0) {
       state.phase='idle'; state.ballAnim=null;
@@ -954,6 +1234,10 @@ function loop(ts) {
 
   state.flashTimer=Math.max(0, state.flashTimer-dt);
   state.crowdT+=dt;
+  // Crowd excitement decays
+  state.crowdExcited = Math.max(0, (state.crowdExcited||0) - dt*0.0008);
+  // Contact flash decays fast
+  state.contactFlash = Math.max(0, (state.contactFlash||0) - dt*0.005);
 
   drawFrame(dt);
   requestAnimationFrame(loop);
