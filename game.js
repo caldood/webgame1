@@ -777,8 +777,8 @@ function drawPitcher(pitchT) {
 // RHB: right shoulder (3B side) = screen LEFT; left (1B) = screen RIGHT.
 function drawBatter() {
   // Smaller figure, positioned to the right side of screen
-  const ax = LW - 62, ay = LH - 22;
-  const SCALE = 0.56;   // scale down from the full-size drawing coords
+  const ax = LW - 76, ay = LH - 14;
+  const SCALE = 0.60;   // scale down from the full-size drawing coords
 
   const sf   = state.batSwinging ? easeInOut(Math.min(1, state.batSwing)) : 0;
   const batA = lerp(-0.52, 1.58, sf);
@@ -865,57 +865,73 @@ function drawBatter() {
   $( 26,-160, 16, 38, P.skin);
   $( 38,-162,  3, 36, P.blue);   // sleeve edge
 
-  // ── Forearms (foreshortened — angled forward) ────────────
-  // They come forward and inward to grip the bat
-  $(-36,-126, 12, 20, P.skin);   // L forearm
-  $( 26,-124, 12, 18, P.skin);   // R forearm
+  // ── Forearms (foreshortened — both arms converge to back shoulder grip) ─
+  // L forearm (back/3B side): drops from upper arm into the grip area
+  $(-36,-130, 12, 22, P.skin);
+  $(-34,-125, 10,  5, P.skinDk); // inner forearm shadow
+  // R forearm (front/1B side): reaches across from the other shoulder
+  $( 24,-128, 14, 20, P.skin);
+  $( 24,-122, 10,  5, P.skinDk); // inner forearm shadow
+  // Wrist-band (compression sleeve edge on L arm)
+  $(-36,-112,  12, 3, '#A0A4C0');
 
-  // ── Batting gloves ────────────────────────────────────────
-  $(-38,-110, 14, 12, P.navy);   // L glove
-  $( 26,-108, 14, 12, P.navy);   // R glove
-  // Velcro strap
-  $(-36,-114,  9,  2, '#606090');
-  $( 28,-112,  9,  2, '#606090');
-  // Finger padding
-  $(-37,-106,  4,  6, '#383860');
-  $(-32,-106,  4,  6, '#383860');
-  $( 27,-104,  4,  6, '#383860');
-  $( 32,-104,  4,  6, '#383860');
-
-  // ── Helmet (back-view, RHB: ear flap on screen-LEFT = 3B side) ─
-  // Dome
-  $(-22,-222, 46, 30, P.blue);   // lower dome
-  $(-18,-234, 38, 14, P.blue);   // mid dome
-  $(-12,-242, 26, 10, P.blue);   // upper dome
-  // Inner shadow for depth
-  $(-18,-220, 38, 26, P.navy);
-  $(-14,-232, 30, 12, P.navy);
-  // Ear flap (screen-LEFT = batter's right ear, 3B facing, correct for RHB)
-  $(-32,-212, 12, 32, P.blue);
-  $(-30,-208, 10, 26, P.navy);
-  $(-30,-196,  8, 10, P.blue);   // bottom curve of flap
-  // Brim (faces toward pitcher = upper-right in back view)
-  $( -4,-192, 22,  5, P.navy);
-  $(  6,-196, 12,  5, P.navy);
-  // Vent strips
-  $(-10,-222,  3, 20, '#4858B0');
-  $(  6,-222,  3, 20, '#4858B0');
-  // Button on crown
-  $( -4,-244,  8,  5, P.navy);
-  $(  0,-246,  2,  2, P.white);  // pin dot
-
-  // ── Neck ─────────────────────────────────────────────────
-  $(-8,-195, 17, 20, P.skin);
+  // ── Neck (turned left — batter looking toward pitcher) ──────
+  $(-8,-196, 14, 22, P.skin);       // main neck column
+  $(-14,-194,  7, 16, P.skin);      // left side of neck visible (profile turn)
+  $(-15,-191,  5,  8, P.skinDk);    // neck shadow where it curves away
   // Jersey collar
   $(-10,-174, 22,  5, P.blue);
 
-  // ── Bat (grip from screen-left, bat loads behind right shoulder) ─
-  // Grip origin: between hands where they meet
-  const gx = -14, gy = -108;
+  // ── Helmet (head turned left — brim toward pitcher) ──────────
+  // Dome (shifted slightly left to sell the turn)
+  $(-25,-222, 46, 28, P.blue);      // lower dome
+  $(-21,-234, 38, 13, P.blue);      // mid dome
+  $(-15,-242, 27,  9, P.blue);      // upper dome
+  // Inner shadow for depth
+  $(-21,-220, 38, 24, P.navy);
+  $(-17,-232, 30, 12, P.navy);
+  // ── Right cheek / jaw profile (camera-near side = screen-LEFT) ─
+  // Since the head turns left, the batter's right cheek faces toward our camera
+  $(-30,-212,  8, 20, P.skin);      // cheekbone
+  $(-29,-207,  7, 14, P.skin);      // cheek fill
+  $(-28,-195,  6,  7, P.skin);      // jaw / chin
+  $(-28,-203,  4,  8, P.skinDk);    // jaw shadow line
+  // Ear flap (screen-LEFT = 3B back side — stays prominent, close to camera)
+  $(-34,-214, 12, 30, P.blue);
+  $(-32,-210, 10, 25, P.navy);
+  $(-32,-198,  8,  8, P.blue);      // flap bottom curve
+  // Brim — faces pitcher (upper-LEFT in our behind-right view)
+  $(-22,-192, 24,  5, P.navy);      // main brim shifted left toward pitcher
+  $(-26,-196, 16,  5, P.navy);      // brim tip extending further left
+  $(  0,-191, 10,  3, '#0A0A40');   // brim underside shadow (right edge)
+  // Vent strips
+  $(-12,-222,  3, 20, '#4858B0');
+  $(  4,-222,  3, 20, '#4858B0');
+  // Button on crown
+  $( -5,-244,  7,  4, P.navy);
+  $( -2,-245,  2,  2, P.white);     // pin dot
 
-  // Wrist/hands wrapping the grip
-  $( gx-6, gy-6, 22, 12, P.skin);   // top hand (L for RHB)
-  $( gx-5, gy+4, 20, 10, P.navy);   // bottom hand glove (R for RHB)
+  // ── Bat (loads on back shoulder, hands stacked on handle) ────
+  // Grip origin: where the two hands meet on the handle
+  // For RHB loaded stance: hands near back (right) shoulder, around armpit height
+  const gx = -20, gy = -118;
+
+  // ── Top hand — batter's LEFT (skin), wraps above bottom hand ──
+  // Dorsum (back of hand) faces camera-left, knuckle row visible
+  $( gx-8, gy-11, 24, 10, P.skin);    // hand back / knuckles
+  $( gx-6, gy-12, 20,  4, P.skinDk);  // knuckle ridge
+  // Individual knuckle bumps
+  for(let k=0;k<4;k++) $( gx-5+k*5, gy-13, 4, 3, P.skin );
+  $( gx-8, gy- 2, 24,  8, P.skin);    // palm/wrist below knuckles
+  $( gx-7, gy-  1, 22,  4, P.skinDk); // wrist crease
+
+  // ── Bottom hand — batter's RIGHT, batting glove (navy) ────────
+  $( gx-7, gy+ 6, 22, 13, P.navy);    // glove body
+  $( gx-5, gy+ 7, 11,  3, '#5060A0'); // velcro strap L half
+  $( gx+5, gy+ 7, 9,   3, '#5060A0'); // velcro strap R half
+  $( gx-5, gy+10, 7,   2, '#383870'); // strap shadow
+  // Finger padding (four pads across top of glove)
+  for(let k=0;k<4;k++) $( gx-6+k*6, gy+18, 5, 4, '#383860');
 
   ctx.save();
   ctx.translate(gx, gy);
