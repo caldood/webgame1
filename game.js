@@ -607,6 +607,51 @@ function drawStrikeZone(alpha) {
   ctx.setLineDash([]); ctx.restore();
 }
 
+// ─── New Mexico Zia sun — on-deck circle (left foul territory) ─
+function drawZia() {
+  // The Zia is the sun symbol on the New Mexico state flag:
+  // a central circle with 4 groups of 4 rays at N/E/S/W.
+  const zx = 44, zy = 408;
+  const r  = 13;
+  const col = 'rgba(245,238,210,0.82)'; // chalk-on-dirt colour
+
+  ctx.save();
+  ctx.translate(zx, zy);
+  ctx.strokeStyle = col;
+  ctx.fillStyle   = col;
+  ctx.lineWidth   = 1.6;
+
+  // Outer on-deck circle (dashed chalk)
+  ctx.setLineDash([3, 5]);
+  ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Central sun body
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.stroke();
+  // Center filled dot
+  ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI*2); ctx.fill();
+
+  // 4 groups × 4 rays — one group per cardinal direction
+  // Each group: four parallel lines; the inner two are taller.
+  for (let g = 0; g < 4; g++) {
+    ctx.save();
+    ctx.rotate(g * Math.PI / 2);
+    // offsets perpendicular to the ray direction: -4.5, -1.5, +1.5, +4.5
+    [-4.5, -1.5, 1.5, 4.5].forEach((ox, i) => {
+      const len = (i === 1 || i === 2) ? 13 : 9;   // inner 2 longer
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(ox, -(r + 3));
+      ctx.lineTo(ox, -(r + 3 + len));
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
 // ─── Palm trees (San Diego touch) ────────────────────────────
 function drawPalm(cx, baseY, ht) {
   // Trunk (tapered)
@@ -773,16 +818,30 @@ function drawPitcher(pitchT) {
 
 // ─── Batter (right-handed, jersey #3) full figure from behind ─
 // Camera is slightly above & behind home plate, batter faces pitcher.
-// From this angle we see the player's back.
-// RHB: right shoulder (3B side) = screen LEFT; left (1B) = screen RIGHT.
+// RHB: right shoulder (3B/back) = screen LEFT; left (1B/front) = screen RIGHT.
 function drawBatter() {
-  // Smaller figure, positioned to the right side of screen
   const ax = LW - 76, ay = LH - 14;
-  const SCALE = 0.60;   // scale down from the full-size drawing coords
+  const SCALE = 0.60;
 
-  const sf   = state.batSwinging ? easeInOut(Math.min(1, state.batSwing)) : 0;
-  const batA = lerp(-0.52, 1.58, sf);
-  const lean = lerp(0, 0.06, sf);
+  const sf = state.batSwinging ? easeInOut(Math.min(1, state.batSwing)) : 0;
+
+  // ── Swing physics ────────────────────────────────────────
+  // Loaded: bat upright behind shoulder (~-0.75 rad from vertical).
+  // Sweeps level through contact zone, wraps over front shoulder (2.1 rad).
+  const batA = lerp(-0.75, 2.1, sf);
+
+  // Torso leans into the swing (hip/shoulder rotation)
+  const lean = lerp(0, 0.15, sf);
+
+  // Back-foot heel peels off ground once weight transfers (~30% into swing)
+  const heelLift = ~~(Math.max(0, Math.min(1, (sf - 0.28) / 0.55)) * 12);
+
+  // Arms drive forward through contact and into follow-through
+  const armExt = Math.min(1, sf * 1.5);
+
+  // Grip drifts forward as hands clear the hitting zone
+  const gx = ~~lerp(-22, -12, armExt);
+  const gy = -126;
 
   ctx.save();
   ctx.translate(ax, ay);
@@ -790,202 +849,167 @@ function drawBatter() {
   ctx.rotate(lean);
 
   // ── Ground shadow ────────────────────────────────────────
-  ctx.fillStyle='rgba(0,0,0,0.22)';
-  ctx.beginPath(); ctx.ellipse(2,-2,28,7,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(2,-2,30,7,0,0,Math.PI*2); ctx.fill();
 
-  // ── Cleats ───────────────────────────────────────────────
-  // Left (screen-left = batter's right / 3B side): rear foot, slightly bigger
-  $(-24,-14, 24, 9, '#141414');   // sole
-  $(-22,-20, 20, 8, '#222');      // upper
-  $(-20,-22, 16, 4, P.white);     // accent stripe
-  $(-22,-13,  3, 3, '#555');      // cleat stud
-  $(-16,-13,  3, 3, '#555');
-  $(-10,-13,  3, 3, '#555');
-  // Right (screen-right = batter's left / 1B side): stride foot
+  // ── Rear cleat (batter's right / back foot) ──────────────
+  // Heel peels up during swing while ball of foot stays planted.
+  // Heel block (left in screen = back of foot)
+  $(-24, -14-heelLift, 13, 8, '#141414');
+  $(-22, -21-heelLift, 11, 9, '#222');
+  $(-21, -23-heelLift,  9, 3, P.white);
+  // Ball-of-foot block (stays grounded)
+  $(-11, -14, 13, 8, '#141414');
+  $(-11, -21, 11, 9, '#222');
+  $(-10, -23,  9, 3, P.white);
+  // Studs (ball of foot only)
+  $(-18, -13, 3, 3, '#555');
+  $(-12, -13, 3, 3, '#555');
+  $( -6, -13, 3, 3, '#555');
+
+  // ── Stride cleat (batter's left / front foot) ────────────
+  // Plants firmly; shown slightly ahead/open toward pitcher
   $(  4,-12, 24, 8, '#141414');
-  $(  6,-17, 20, 7, '#222');
-  $(  8,-19, 16, 4, P.white);
+  $(  5,-18, 22, 8, '#222');
+  $(  7,-20, 18, 4, P.white);
   $(  6,-11,  3, 3, '#555');
   $( 12,-11,  3, 3, '#555');
   $( 18,-11,  3, 3, '#555');
 
   // ── Socks (white with blue stirrups) ─────────────────────
-  $(-24,-50, 22, 36, P.white);    // L sock
-  $(  4,-48, 22, 36, P.white);    // R sock
-  $(-22,-38, 18,  4, P.blue);     // L stirrup
-  $(  6,-36, 18,  4, P.blue);     // R stirrup
-  $(-22,-32, 18,  3, P.blue);
-  $(  6,-30, 18,  3, P.blue);
+  // Rear leg lifts with heel
+  $(-24, -50+heelLift, 22, 36-heelLift, P.white);
+  $(  4, -48, 22, 36, P.white);
+  $(-22, -38+heelLift, 18, 4, P.blue);
+  $(  6, -36, 18, 4, P.blue);
+  $(-22, -32+heelLift, 18, 3, P.blue);
+  $(  6, -30, 18, 3, P.blue);
 
-  // ── Pants (white baseball pants) ─────────────────────────
-  $(-26,-90, 24, 42, P.white);    // L leg
-  $(  4,-88, 24, 40, P.white);    // R leg
-  $( -4,-89, 10, 40, P.white);    // center fill
-  // Seam/crease shading
-  $(-26,-88,  2, 38, '#D8D4C8');
-  $( 26,-86,  2, 36, '#D8D4C8');
-  $( -6,-88,  2, 38, '#E4E0D4');
-  $(  4,-86,  2, 36, '#E4E0D4');
+  // ── Pants ─────────────────────────────────────────────────
+  // Rear leg follows heel lift (subtle foreshortening)
+  const rLegShift = ~~(heelLift * 0.35);
+  $(-26, -90+rLegShift, 24, 42-rLegShift, P.white);
+  $(  4, -88, 24, 40, P.white);
+  $( -4, -89, 10, 40, P.white);
+  $(-26, -88,  2, 38, '#D8D4C8');
+  $( 26, -86,  2, 36, '#D8D4C8');
+  $( -6, -88,  2, 38, '#E4E0D4');
+  $(  4, -86,  2, 36, '#E4E0D4');
 
   // ── Belt ─────────────────────────────────────────────────
   $(-28,-95, 58,  5, '#1A1A1A');
-  // Buckle
-  $( -5,-97,  10, 8, '#5A5A5A');
-  $( -3,-96,   6, 6, P.gold);
-  $( -1,-95,   2, 4, '#8A6800');
+  $( -5,-97, 10,  8, '#5A5A5A');
+  $( -3,-96,  6,  6, P.gold);
+  $( -1,-95,  2,  4, '#8A6800');
 
   // ── Jersey back (white Dodger pinstripes) ─────────────────
-  // Main body
   $(-28,-170, 58, 76, P.white);
-  // Pinstripes (thin blue lines every 8px)
-  for(let p=-26; p<28; p+=8){
-    $(p,-170, 2, 76, '#9AA8E0');
-  }
-  // Side seams (solid blue)
+  for(let p=-26; p<28; p+=8) $(p,-170, 2, 76, '#9AA8E0');
   $(-30,-170, 4, 76, P.blue);
   $( 28,-170, 4, 76, P.blue);
-  // Jersey hem
   $(-28,-97, 58,  3, '#D8D4C0');
-  // Shoulder yoke (blue panel across top)
-  $(-30,-170, 62, 14, P.blue);
+  $(-30,-170, 62, 14, P.blue);   // shoulder yoke
   $(-28,-158,  6, 10, P.blue);   // L sleeve top
   $( 24,-158,  6, 10, P.blue);   // R sleeve top
-
-  // Number "3" on back — big and clear
   ctx.fillStyle = P.blue;
   ctx.font = 'bold 36px monospace';
   ctx.textAlign = 'center';
   ctx.fillText('3', 1, -120);
 
-  // ── Shoulders & upper arms ───────────────────────────────
-  // Left upper arm (3B side, larger / closer to camera)
-  $(-40,-162, 16, 40, P.skin);
-  $(-38,-162,  3, 38, P.blue);   // sleeve edge
-  // Right upper arm (1B side)
-  $( 26,-160, 16, 38, P.skin);
-  $( 38,-162,  3, 36, P.blue);   // sleeve edge
+  // ── Shoulders & upper arms ────────────────────────────────
+  $(-40,-162, 16, 40, P.skin);  $(-38,-162, 3, 38, P.blue);
+  $( 26,-160, 16, 38, P.skin);  $( 38,-162, 3, 36, P.blue);
 
-  // ── Forearms (foreshortened — both arms converge to back shoulder grip) ─
-  // L forearm (back/3B side): drops from upper arm into the grip area
-  $(-36,-130, 12, 22, P.skin);
-  $(-34,-125, 10,  5, P.skinDk); // inner forearm shadow
-  // R forearm (front/1B side): reaches across from the other shoulder
-  $( 24,-128, 14, 20, P.skin);
-  $( 24,-122, 10,  5, P.skinDk); // inner forearm shadow
-  // Wrist-band (compression sleeve edge on L arm)
-  $(-36,-112,  12, 3, '#A0A4C0');
+  // ── Forearms — extend forward as swing progresses ─────────
+  const fax = ~~lerp(0, 5, armExt);
+  $(-36+fax, -130, 12, 22, P.skin);
+  $(-34+fax, -125, 10,  5, P.skinDk);
+  $( 24+fax, -128, 14, 20, P.skin);
+  $( 24+fax, -122, 10,  5, P.skinDk);
+  $(-36+fax, -112, 12,  3, '#A0A4C0');   // compression wrist band
 
-  // ── Neck (turned left — batter looking toward pitcher) ──────
-  $(-8,-196, 14, 22, P.skin);       // main neck column
-  $(-14,-194,  7, 16, P.skin);      // left side of neck visible (profile turn)
-  $(-15,-191,  5,  8, P.skinDk);    // neck shadow where it curves away
-  // Jersey collar
-  $(-10,-174, 22,  5, P.blue);
+  // ── Neck (turned left — chin toward pitcher) ──────────────
+  $( -8,-196, 14, 22, P.skin);
+  $(-14,-194,  7, 16, P.skin);
+  $(-15,-191,  5,  8, P.skinDk);
+  $(-10,-174, 22,  5, P.blue);    // jersey collar
 
-  // ── Helmet (head turned left — brim toward pitcher) ──────────
-  // Dome (shifted slightly left to sell the turn)
-  $(-25,-222, 46, 28, P.blue);      // lower dome
-  $(-21,-234, 38, 13, P.blue);      // mid dome
-  $(-15,-242, 27,  9, P.blue);      // upper dome
-  // Inner shadow for depth
+  // ── Helmet (head turned, brim toward pitcher) ─────────────
+  $(-25,-222, 46, 28, P.blue);
+  $(-21,-234, 38, 13, P.blue);
+  $(-15,-242, 27,  9, P.blue);
   $(-21,-220, 38, 24, P.navy);
   $(-17,-232, 30, 12, P.navy);
-  // ── Right cheek / jaw profile (camera-near side = screen-LEFT) ─
-  // Since the head turns left, the batter's right cheek faces toward our camera
-  $(-30,-212,  8, 20, P.skin);      // cheekbone
-  $(-29,-207,  7, 14, P.skin);      // cheek fill
-  $(-28,-195,  6,  7, P.skin);      // jaw / chin
-  $(-28,-203,  4,  8, P.skinDk);    // jaw shadow line
-  // Ear flap (screen-LEFT = 3B back side — stays prominent, close to camera)
+  // Right cheek / jaw profile (camera-near, batter's right)
+  $(-30,-212,  8, 20, P.skin);
+  $(-29,-207,  7, 14, P.skin);
+  $(-28,-195,  6,  7, P.skin);
+  $(-28,-203,  4,  8, P.skinDk);
+  // Ear flap (screen-left = 3B / back side)
   $(-34,-214, 12, 30, P.blue);
   $(-32,-210, 10, 25, P.navy);
-  $(-32,-198,  8,  8, P.blue);      // flap bottom curve
-  // Brim — faces pitcher (upper-LEFT in our behind-right view)
-  $(-22,-192, 24,  5, P.navy);      // main brim shifted left toward pitcher
-  $(-26,-196, 16,  5, P.navy);      // brim tip extending further left
-  $(  0,-191, 10,  3, '#0A0A40');   // brim underside shadow (right edge)
-  // Vent strips
+  $(-32,-198,  8,  8, P.blue);
+  // Brim facing pitcher (upper-left)
+  $(-22,-192, 24,  5, P.navy);
+  $(-26,-196, 16,  5, P.navy);
+  $(  0,-191, 10,  3, '#0A0A40');
   $(-12,-222,  3, 20, '#4858B0');
   $(  4,-222,  3, 20, '#4858B0');
-  // Button on crown
   $( -5,-244,  7,  4, P.navy);
-  $( -2,-245,  2,  2, P.white);     // pin dot
+  $( -2,-245,  2,  2, P.white);
 
-  // ── Bat (loads on back shoulder, hands stacked on handle) ────
-  // Grip origin: where the two hands meet on the handle
-  // For RHB loaded stance: hands near back (right) shoulder, around armpit height
-  const gx = -20, gy = -118;
+  // ── Top hand — batter's LEFT (skin), knuckles visible ────
+  $( gx-8, gy-11, 24, 10, P.skin);
+  $( gx-6, gy-12, 20,  4, P.skinDk);
+  for(let k=0;k<4;k++) $( gx-5+k*5, gy-13, 4, 3, P.skin);
+  $( gx-8, gy- 2, 24,  8, P.skin);
+  $( gx-7, gy- 1, 22,  4, P.skinDk);
 
-  // ── Top hand — batter's LEFT (skin), wraps above bottom hand ──
-  // Dorsum (back of hand) faces camera-left, knuckle row visible
-  $( gx-8, gy-11, 24, 10, P.skin);    // hand back / knuckles
-  $( gx-6, gy-12, 20,  4, P.skinDk);  // knuckle ridge
-  // Individual knuckle bumps
-  for(let k=0;k<4;k++) $( gx-5+k*5, gy-13, 4, 3, P.skin );
-  $( gx-8, gy- 2, 24,  8, P.skin);    // palm/wrist below knuckles
-  $( gx-7, gy-  1, 22,  4, P.skinDk); // wrist crease
-
-  // ── Bottom hand — batter's RIGHT, batting glove (navy) ────────
-  $( gx-7, gy+ 6, 22, 13, P.navy);    // glove body
-  $( gx-5, gy+ 7, 11,  3, '#5060A0'); // velcro strap L half
-  $( gx+5, gy+ 7, 9,   3, '#5060A0'); // velcro strap R half
-  $( gx-5, gy+10, 7,   2, '#383870'); // strap shadow
-  // Finger padding (four pads across top of glove)
+  // ── Bottom hand — batter's RIGHT (batting glove) ──────────
+  $( gx-7, gy+ 6, 22, 13, P.navy);
+  $( gx-5, gy+ 7, 11,  3, '#5060A0');
+  $( gx+5, gy+ 7,  9,  3, '#5060A0');
+  $( gx-5, gy+10,  7,  2, '#383870');
   for(let k=0;k<4;k++) $( gx-6+k*6, gy+18, 5, 4, '#383860');
 
+  // ── Bat (pivots around grip point) ───────────────────────
   ctx.save();
   ctx.translate(gx, gy);
   ctx.rotate(batA);
   ctx.lineCap = 'round';
 
   // Knob
-  ctx.fillStyle='#3C2010';
-  ctx.beginPath(); ctx.arc(0,4,6,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#5A3018';
-  ctx.beginPath(); ctx.arc(0,2,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3C2010'; ctx.beginPath(); ctx.arc(0,4,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5A3018'; ctx.beginPath(); ctx.arc(0,2,4,0,Math.PI*2); ctx.fill();
 
-  // Grip tape (black, with wrapped texture rings)
+  // Grip tape
   ctx.strokeStyle='#1A1010'; ctx.lineWidth=7;
   ctx.beginPath(); ctx.moveTo(0,2); ctx.lineTo(0,-26); ctx.stroke();
   ctx.strokeStyle='#2A2020'; ctx.lineWidth=1;
-  for(let g=0; g<7; g++){
-    ctx.beginPath();
-    ctx.moveTo(-4, -g*4-1);
-    ctx.lineTo( 4, -g*4-1);
-    ctx.stroke();
+  for(let g=0;g<7;g++){
+    ctx.beginPath(); ctx.moveTo(-4,-g*4-1); ctx.lineTo(4,-g*4-1); ctx.stroke();
   }
 
-  // Handle (natural wood, tapered)
+  // Handle → taper → barrel
   ctx.strokeStyle='#6B3A18'; ctx.lineWidth=7;
   ctx.beginPath(); ctx.moveTo(0,-24); ctx.lineTo(0,-58); ctx.stroke();
-
-  // Taper zone
   ctx.strokeStyle='#7D4A22'; ctx.lineWidth=10;
   ctx.beginPath(); ctx.moveTo(0,-55); ctx.lineTo(0,-72); ctx.stroke();
-
-  // Barrel (wide, rounded)
   ctx.strokeStyle='#9B6238'; ctx.lineWidth=17;
   ctx.beginPath(); ctx.moveTo(0,-70); ctx.lineTo(0,-94); ctx.stroke();
-  // Second pass slightly lighter for depth
   ctx.strokeStyle='#A87248'; ctx.lineWidth=13;
   ctx.beginPath(); ctx.moveTo(-1,-71); ctx.lineTo(-1,-93); ctx.stroke();
 
   // End cap
-  ctx.fillStyle='#B08050';
-  ctx.beginPath(); ctx.arc(0,-94,10,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#C09060';
-  ctx.beginPath(); ctx.arc(-1,-95,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#B08050'; ctx.beginPath(); ctx.arc(0,-94,10,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#C09060'; ctx.beginPath(); ctx.arc(-1,-95,7,0,Math.PI*2); ctx.fill();
 
-  // Barrel highlight (sheen down one side)
+  // Sheen + wood grain
   ctx.strokeStyle='rgba(255,255,255,0.38)'; ctx.lineWidth=3;
   ctx.beginPath(); ctx.moveTo(-5,-72); ctx.lineTo(-5,-92); ctx.stroke();
-
-  // Wood grain lines
   ctx.strokeStyle='rgba(80,40,10,0.30)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(3,-72); ctx.lineTo(3,-90); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(6,-76); ctx.lineTo(6,-88); ctx.stroke();
-
-  // Brand stamp on barrel
   $(-5,-82, 10, 2, 'rgba(60,30,10,0.35)');
 
   ctx.restore(); // bat
@@ -1254,6 +1278,7 @@ function drawFrame(dt) {
   drawFoulPoles();
   drawWarningTrack();
   drawField();             // grass + foul lines
+  drawZia();               // on-deck Zia symbol (left foul territory)
   drawInfield();           // dirt diamond, bases, mound
   drawBatterBox();
   drawHomePlate();
