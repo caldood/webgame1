@@ -594,19 +594,17 @@ function drawPitcher(pitchT) {
 // From this angle we see the player's back.
 // RHB: right shoulder (3B side) = screen LEFT; left (1B) = screen RIGHT.
 function drawBatter() {
-  // Anchor: foot/hip center
-  const ax = 158, ay = LH - 18;
+  // Smaller figure, positioned to the right side of screen
+  const ax = LW - 46, ay = LH - 22;
+  const SCALE = 0.52;   // scale down from the full-size drawing coords
 
-  // Bat swing: rest loaded (-0.5 rad = upper-left / right-shoulder loaded),
-  // sweeps clockwise through contact (~0.3) to follow-through (1.55).
   const sf   = state.batSwinging ? easeInOut(Math.min(1, state.batSwing)) : 0;
   const batA = lerp(-0.52, 1.58, sf);
-
-  // Slight hip/body rotation during swing
   const lean = lerp(0, 0.06, sf);
 
   ctx.save();
   ctx.translate(ax, ay);
+  ctx.scale(SCALE, SCALE);
   ctx.rotate(lean);
 
   // ── Ground shadow ────────────────────────────────────────
