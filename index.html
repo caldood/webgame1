@@ -9,67 +9,43 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+
   <!-- ===================== START SCREEN ===================== -->
   <div id="startScreen" class="screen active">
     <div class="screen-inner">
       <div class="sun"></div>
-      <div class="cloud cloud1"></div>
-      <div class="cloud cloud2"></div>
 
-      <div class="logo-wrap">
-        <div class="cap-badge">LA</div>
-        <h1 class="game-title">Home Run<br>Derby</h1>
-        <p class="sub-title">San Diego Little League</p>
-      </div>
+      <div class="cap-badge">LA</div>
+      <h1 class="game-title">HOME RUN<br>DERBY</h1>
+      <p class="sub-title">San Diego Little League</p>
 
-      <div class="scoreboard-box">
-        <p>Hit 10 pitches.<br>Time your swing perfectly!</p>
+      <div class="scoreboard-box pixel-box">
+        <p>10 PITCHES. TIME YOUR SWING!</p>
         <div class="scoring-key">
-          <span class="key-hr">⚾ Home Run — 10 pts</span>
-          <span class="key-deep">💥 Deep Hit — 5 pts</span>
-          <span class="key-ground">🏃 Grounder — 1 pt</span>
-          <span class="key-miss">❌ Miss — 0 pts</span>
+          <span class="key-hr">  ⚾ CRUSHED!  (perfect timing) = 10 pts</span>
+          <span class="key-deep">  💥 DEEP HIT  (good timing)    = 5 pts</span>
+          <span class="key-ground">  🏃 GROUNDER  (early/late)     = 1 pt</span>
+          <span class="key-miss">  ❌ MISS      (way off)        = 0 pts</span>
         </div>
       </div>
 
       <button id="startBtn" class="btn-main">PLAY BALL!</button>
-      <p class="tap-hint">Tap anywhere to swing</p>
+      <p class="tap-hint">▶ TAP ANYWHERE TO SWING ◀</p>
     </div>
   </div>
 
   <!-- ===================== GAME SCREEN ===================== -->
   <div id="gameScreen" class="screen">
-    <!-- HUD -->
+    <!-- HUD values kept in DOM for JS reference but hidden (drawn on canvas) -->
     <div id="hud">
-      <div class="hud-block">
-        <span class="hud-label">SCORE</span>
-        <span id="scoreDisplay" class="hud-value">0</span>
-      </div>
-      <div class="hud-center">
-        <span id="pitchResult" class="pitch-result"></span>
-      </div>
-      <div class="hud-block">
-        <span class="hud-label">PITCHES</span>
-        <span id="pitchesDisplay" class="hud-value">10</span>
-      </div>
+      <span id="scoreDisplay"></span>
+      <span id="pitchesDisplay"></span>
     </div>
 
-    <!-- Main canvas where the game is drawn -->
+    <!-- Pixel-art game canvas — all rendering happens here -->
     <canvas id="gameCanvas"></canvas>
 
-    <!-- Timing meter (shown during pitch) -->
-    <div id="timingMeter" class="timing-meter hidden">
-      <div class="meter-label">TIMING</div>
-      <div class="meter-track">
-        <div class="meter-zone perfect"></div>
-        <div class="meter-zone good left"></div>
-        <div class="meter-zone good right"></div>
-        <div id="meterIndicator" class="meter-indicator"></div>
-      </div>
-      <div class="meter-hint">TAP TO SWING</div>
-    </div>
-
-    <!-- Swing button (big invisible overlay for mobile taps) -->
+    <!-- Full-screen tap zone for swinging -->
     <div id="swingZone"></div>
   </div>
 
@@ -79,7 +55,7 @@
       <div class="sun"></div>
       <h2 class="end-title">GAME OVER!</h2>
 
-      <div class="final-scoreboard">
+      <div class="final-scoreboard pixel-box">
         <div class="sb-row header">
           <span>PLAYER</span><span>HR</span><span>SCORE</span>
         </div>
