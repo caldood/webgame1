@@ -1,6 +1,6 @@
 /* ============================================================
-   SD Little League Home Run Derby — styles.css
-   16-bit retro / pixel-art theme
+   SD Little League Home Run Derby — styles.css  v3
+   16-bit retro / pixel-art | right-handed batter #3
    ============================================================ */
 
 /* ---------- Reset ---------- */
@@ -115,21 +115,24 @@ html, body {
 
 /* ---------- Game title ---------- */
 .game-title {
-  font-size: 2.4rem;
+  font-size: 2.6rem;
   font-weight: 900;
-  line-height: 1.1;
+  line-height: 1.05;
   color: var(--gold);
-  /* pixel shadow */
+  /* Hard pixel-style multi-shadow outline */
   text-shadow:
-    2px  0   0 #000,
-   -2px  0   0 #000,
-    0    2px 0 #000,
-    0   -2px 0 #000,
-    3px  3px 0 #000;
+     2px  2px 0 #000,
+    -2px  2px 0 #000,
+     2px -2px 0 #000,
+    -2px -2px 0 #000,
+     4px  4px 0 #000814;
   text-align: center;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
   font-family: var(--font);
+  /* Prevent subpixel blur on screens */
+  -webkit-font-smoothing: none;
+  font-smooth: never;
 }
 
 .sub-title {
@@ -229,21 +232,29 @@ html, body {
 #gameCanvas {
   position: absolute;
   top: 0; left: 0;
-  /* Scale to fill screen while preserving logical pixel art */
-  width: 100%;
+  /* Fill height; center horizontally; preserve aspect ratio */
   height: 100%;
-  object-fit: contain;
-  /* Crisp pixel rendering on all browsers */
+  width: auto;
+  max-width: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Crisp pixel upscaling on all browsers — keep that retro crunch */
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   image-rendering: -moz-crisp-edges;
-  cursor: pointer;
+  cursor: crosshair;
 }
 
 /* ---------- Swing zone ---------- */
 #swingZone {
   position: absolute;
-  inset: 0;
+  /* Match canvas positioning so tap area lines up with visual canvas */
+  top: 0; bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  /* width matches canvas aspect — 320:480 = 2:3 */
+  width: calc(100vh * (320 / 480));
+  max-width: 100%;
   z-index: 15;
   cursor: crosshair;
 }
