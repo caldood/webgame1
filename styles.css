@@ -1,0 +1,422 @@
+/* ============================================================
+   SD Little League Home Run Derby — styles.css
+   Mobile-first, Dodger blue palette, cartoon aesthetic
+   ============================================================ */
+
+/* ---------- Reset & Base ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --dodger-blue:   #005A9C;
+  --dodger-light:  #0072CE;
+  --dodger-white:  #FFFFFF;
+  --sky-top:       #87CEEB;
+  --sky-bot:       #C9E8F7;
+  --grass-dark:    #2E7D32;
+  --grass-light:   #43A047;
+  --sand:          #D4A857;
+  --gold:          #FFD700;
+  --hr-red:        #E53935;
+  --text-shadow:   2px 2px 0 rgba(0,0,0,0.5);
+  --font-main:     'Arial Black', 'Arial Bold', sans-serif;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--sky-top);
+  font-family: var(--font-main);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---------- Screens ---------- */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.screen.active { display: flex; }
+
+/* Sky gradient for start/end screens */
+#startScreen, #endScreen {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bot) 55%, var(--grass-dark) 55%, var(--grass-light) 100%);
+}
+
+.screen-inner {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  padding: 20px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ---------- Sun ---------- */
+.sun {
+  position: absolute;
+  top: -30px; right: 20px;
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #FFF9C4 30%, #FFD700 70%);
+  box-shadow: 0 0 30px 10px rgba(255,215,0,0.6);
+  animation: sunPulse 3s ease-in-out infinite;
+}
+@keyframes sunPulse {
+  0%,100% { box-shadow: 0 0 30px 10px rgba(255,215,0,0.6); }
+  50%      { box-shadow: 0 0 50px 20px rgba(255,215,0,0.4); }
+}
+
+/* ---------- Clouds ---------- */
+.cloud {
+  position: absolute;
+  background: white;
+  border-radius: 50px;
+  opacity: 0.85;
+}
+.cloud::before, .cloud::after {
+  content: '';
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+}
+.cloud1 { width: 90px; height: 28px; top: 15px; left: 10px; animation: cloudDrift 18s linear infinite; }
+.cloud1::before { width: 45px; height: 45px; top: -20px; left: 12px; }
+.cloud1::after  { width: 30px; height: 30px; top: -12px; left: 40px; }
+
+.cloud2 { width: 70px; height: 22px; top: 50px; left: 60%; animation: cloudDrift 24s linear infinite reverse; }
+.cloud2::before { width: 36px; height: 36px; top: -16px; left: 8px; }
+.cloud2::after  { width: 24px; height: 24px; top: -10px; left: 30px; }
+
+@keyframes cloudDrift {
+  from { transform: translateX(-120px); }
+  to   { transform: translateX(110vw); }
+}
+
+/* ---------- Logo / Cap Badge ---------- */
+.cap-badge {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: var(--dodger-blue);
+  border: 5px solid var(--dodger-white);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem; font-weight: 900; color: white;
+  letter-spacing: -3px;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
+  font-style: italic;
+}
+
+.game-title {
+  font-size: 2.6rem;
+  line-height: 1.1;
+  color: var(--dodger-white);
+  text-shadow: 3px 3px 0 var(--dodger-blue), 5px 5px 0 rgba(0,0,0,0.3);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sub-title {
+  font-size: 0.9rem;
+  color: var(--dodger-white);
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ---------- Info Box ---------- */
+.scoreboard-box {
+  background: rgba(0, 40, 90, 0.82);
+  border: 3px solid var(--gold);
+  border-radius: 12px;
+  padding: 14px 20px;
+  width: 100%;
+  text-align: center;
+  color: white;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.scoring-key {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+.key-hr    { color: var(--gold); }
+.key-deep  { color: #90CAF9; }
+.key-ground{ color: #A5D6A7; }
+.key-miss  { color: #EF9A9A; }
+
+/* ---------- Buttons ---------- */
+.btn-main {
+  padding: 16px 48px;
+  font-size: 1.3rem;
+  font-weight: 900;
+  font-family: var(--font-main);
+  color: white;
+  background: linear-gradient(180deg, #1565C0 0%, var(--dodger-blue) 100%);
+  border: 4px solid var(--gold);
+  border-radius: 50px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  box-shadow: 0 6px 0 #003366, 0 8px 20px rgba(0,0,0,0.4);
+  transition: transform 0.1s, box-shadow 0.1s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.btn-main:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #003366, 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.tap-hint {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ---------- HUD ---------- */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 64px;
+  background: linear-gradient(180deg, rgba(0,40,90,0.95) 0%, rgba(0,40,90,0.7) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 10;
+  border-bottom: 3px solid var(--gold);
+}
+
+.hud-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 70px;
+}
+.hud-label {
+  font-size: 0.6rem;
+  color: var(--gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.hud-value {
+  font-size: 1.8rem;
+  color: white;
+  line-height: 1;
+  text-shadow: var(--text-shadow);
+}
+
+.hud-center {
+  flex: 1;
+  text-align: center;
+}
+.pitch-result {
+  font-size: 1.4rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.6);
+  transition: opacity 0.3s;
+}
+
+/* ---------- Canvas ---------- */
+#gameCanvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* ---------- Timing Meter ---------- */
+.timing-meter {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(340px, 88vw);
+  background: rgba(0, 20, 60, 0.88);
+  border: 3px solid var(--gold);
+  border-radius: 12px;
+  padding: 10px 16px 12px;
+  z-index: 20;
+  text-align: center;
+}
+.timing-meter.hidden { display: none; }
+
+.meter-label {
+  font-size: 0.65rem;
+  letter-spacing: 3px;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.meter-track {
+  position: relative;
+  height: 28px;
+  background: #c0392b88;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* Good zones */
+.meter-zone {
+  position: absolute;
+  height: 100%;
+  background: #27ae60aa;
+  top: 0;
+}
+.meter-zone.good.left  { left: 15%; width: 20%; }
+.meter-zone.good.right { right: 15%; width: 20%; }
+.meter-zone.perfect    { left: 35%; width: 30%; background: var(--gold); opacity: 0.9; }
+
+/* Moving indicator */
+.meter-indicator {
+  position: absolute;
+  top: 2px; bottom: 2px;
+  width: 10px;
+  background: white;
+  border-radius: 5px;
+  box-shadow: 0 0 8px white;
+  transition: left 0.016s linear;
+  left: 0%;
+}
+
+.meter-hint {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 2px;
+  margin-top: 6px;
+  text-transform: uppercase;
+  animation: blink 1s ease-in-out infinite;
+}
+@keyframes blink {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* ---------- Swing Zone (invisible tap overlay) ---------- */
+#swingZone {
+  position: absolute;
+  inset: 64px 0 0 0;
+  z-index: 15;
+  cursor: pointer;
+}
+
+/* ---------- END SCREEN ---------- */
+.end-title {
+  font-size: 2.4rem;
+  color: var(--gold);
+  text-shadow: 3px 3px 0 var(--dodger-blue), 5px 5px 0 rgba(0,0,0,0.3);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+}
+
+.final-scoreboard {
+  width: 100%;
+  background: rgba(0,20,60,0.88);
+  border: 3px solid var(--gold);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.sb-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 20px;
+  color: white;
+  font-size: 1.1rem;
+}
+.sb-row.header {
+  background: var(--dodger-blue);
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  color: var(--gold);
+  padding: 8px 20px;
+}
+.sb-name { color: #90CAF9; }
+
+.rating-msg {
+  font-size: 1.2rem;
+  text-align: center;
+  color: var(--gold);
+  text-shadow: var(--text-shadow);
+  min-height: 1.5em;
+}
+
+/* ---------- Hit Log ---------- */
+.hit-log {
+  width: 100%;
+  background: rgba(0,20,60,0.7);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  min-height: 44px;
+}
+.hit-chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.hit-chip.hr     { background: var(--gold); color: #000; }
+.hit-chip.deep   { background: #1565C0; color: #fff; }
+.hit-chip.ground { background: var(--grass-dark); color: #fff; }
+.hit-chip.miss   { background: #555; color: #ccc; }
+
+/* ---------- Feedback flash ---------- */
+.feedback-pop {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.5);
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 3px 3px 0 rgba(0,0,0,0.6);
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: transform 0.15s ease-out, opacity 0.15s;
+  white-space: nowrap;
+}
+.feedback-pop.show {
+  transform: translateX(-50%) scale(1.1);
+  opacity: 1;
+}
+
+/* ---------- Palm trees (decorative CSS) ---------- */
+.palm { display: none; } /* rendered on canvas */
+
+/* ---------- Responsive tweaks ---------- */
+@media (max-height: 640px) {
+  .game-title   { font-size: 2rem; }
+  .screen-inner { gap: 10px; padding-top: 10px; }
+  .cap-badge    { width: 60px; height: 60px; font-size: 1.5rem; }
+}
+@media (min-width: 600px) {
+  #gameCanvas { max-width: 500px; left: 50%; transform: translateX(-50%); }
+  #hud { max-width: 500px; left: 50%; transform: translateX(-50%); }
+  #swingZone { max-width: 500px; left: 50%; transform: translateX(-50%); }
+  .timing-meter { width: 360px; }
+}
