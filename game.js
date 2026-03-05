@@ -113,6 +113,7 @@ function resetState() {
     crowdExcited: 0,     // 0-1, peaks on HR, fades out
     contactFlash: 0,     // brief white flash at contact point
     contactX: 0, contactY: 0,
+    hrDistance: 0,       // feet, set on HR outcome
   };
 }
 
@@ -353,6 +354,18 @@ function drawOutfieldWall() {
   for(let px=16; px<LW-16; px+=24) {
     $(px, F.wallY+2, 18, 8, '#1A6020');
   }
+  // ── Distance markers ───────────────────────────────────────
+  // Left field (340)
+  $(18, F.wallY+3, 24, 10, P.navy);
+  txtC('340', 30, F.wallY+11, P.white, 7);
+  // Center field (400) — above scoreboard
+  // Right field (330)
+  $(278, F.wallY+3, 24, 10, P.navy);
+  txtC('330', 290, F.wallY+11, P.white, 7);
+  // Center field marker on wall (small sign between scoreboard gap)
+  const cfX = LW/2;
+  $(cfX-14, F.wallY+3, 28, 10, '#0A1A5A');
+  txtC('400', cfX, F.wallY+11, P.gold, 7);
 }
 
 function drawFoulPoles() {
@@ -411,6 +424,37 @@ function drawField() {
     ctx.closePath(); ctx.fill();
   }
 
+  // ── Center-field circle mowing pattern ─────────────────────
+  // Two concentric lighter rings give a classic mowed-circle look
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = P.g1;
+  ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.arc(VP.x, VP.y+70, 68, 0, Math.PI*2); ctx.stroke();
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(VP.x, VP.y+70, 42, 0, Math.PI*2); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // ── Foul territory dirt strips (beside batter's boxes) ──────
+  // Left foul territory
+  ctx.fillStyle = P.drt;
+  ctx.beginPath();
+  ctx.moveTo(F.plt.x, F.plt.y);
+  ctx.lineTo(F.lWallX, F.wallBot);
+  ctx.lineTo(F.lWallX-8, F.trackBot);
+  ctx.lineTo(0, LH);
+  ctx.lineTo(0, F.plt.y);
+  ctx.closePath(); ctx.fill();
+  // Right foul territory
+  ctx.beginPath();
+  ctx.moveTo(F.plt.x, F.plt.y);
+  ctx.lineTo(F.rWallX, F.wallBot);
+  ctx.lineTo(F.rWallX+8, F.trackBot);
+  ctx.lineTo(LW, LH);
+  ctx.lineTo(LW, F.plt.y);
+  ctx.closePath(); ctx.fill();
+
   // Foul lines (white chalk) from home plate to wall corners
   ctx.strokeStyle=P.chalk; ctx.lineWidth=1.5; ctx.setLineDash([]);
   ctx.beginPath(); ctx.moveTo(F.plt.x, F.plt.y); ctx.lineTo(F.lWallX, F.wallBot); ctx.stroke();
@@ -457,12 +501,27 @@ function drawInfield() {
   ctx.fill();
 
   // ── Pitcher's mound ───────────────────────────────────────
+  // Worn path from mound to home (center strip)
+  ctx.fillStyle = 'rgba(122,80,32,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(F.mnd.x-5, F.mnd.y+6);
+  ctx.lineTo(F.plt.x-4,  F.plt.y-14);
+  ctx.lineTo(F.plt.x+4,  F.plt.y-14);
+  ctx.lineTo(F.mnd.x+5, F.mnd.y+6);
+  ctx.closePath(); ctx.fill();
+  // Mound base shadow
   ctx.fillStyle=P.drtDk;
-  ctx.beginPath(); ctx.ellipse(F.mnd.x,F.mnd.y,20,8,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(F.mnd.x,F.mnd.y,22,9,0,0,Math.PI*2); ctx.fill();
+  // Mound body
   ctx.fillStyle=P.drt;
-  ctx.beginPath(); ctx.ellipse(F.mnd.x,F.mnd.y-2,17,6,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(F.mnd.x,F.mnd.y-2,18,7,0,0,Math.PI*2); ctx.fill();
+  // Top highlight (lighter dirt at top of mound)
+  ctx.fillStyle='#AE7A38';
+  ctx.beginPath(); ctx.ellipse(F.mnd.x,F.mnd.y-3,12,4,0,0,Math.PI*2); ctx.fill();
   // Pitcher's rubber
-  $(F.mnd.x-6, F.mnd.y-4, 12, 3, P.chalk);
+  $(F.mnd.x-6, F.mnd.y-5, 12, 3, P.chalk);
+  // Rubber shadow
+  $(F.mnd.x-6, F.mnd.y-2, 12, 1, '#A0A090');
 
   // ── Base paths (chalk) ────────────────────────────────────
   ctx.strokeStyle=P.chalk; ctx.lineWidth=1.2; ctx.setLineDash([3,3]);
@@ -477,18 +536,26 @@ function drawInfield() {
   ctx.setLineDash([]);
 
   // ── Bases ─────────────────────────────────────────────────
-  [[F.b1.x,F.b1.y],[F.b3.x,F.b3.y]].forEach(([bx,by]) => {
+  [[F.b1.x,F.b1.y,12],[F.b3.x,F.b3.y,12],[F.b2.x,F.b2.y,10]].forEach(([bx,by,sz]) => {
+    const h = ~~(sz/2);
+    // Base shadow
+    ctx.fillStyle='rgba(0,0,0,0.22)';
+    ctx.save(); ctx.translate(bx+2,by+2); ctx.rotate(Math.PI/4);
+    ctx.fillRect(-h,-h,sz,sz); ctx.restore();
+    // Base body
     ctx.fillStyle=P.offWht;
     ctx.save(); ctx.translate(bx,by); ctx.rotate(Math.PI/4);
-    ctx.fillRect(-6,-6,12,12); ctx.restore();
+    ctx.fillRect(-h,-h,sz,sz); ctx.restore();
+    // Base border
     ctx.strokeStyle='#C0BCA0'; ctx.lineWidth=1;
     ctx.save(); ctx.translate(bx,by); ctx.rotate(Math.PI/4);
-    ctx.strokeRect(-6,-6,12,12); ctx.restore();
+    ctx.strokeRect(-h,-h,sz,sz); ctx.restore();
+    // Stitching line across base
+    ctx.strokeStyle='rgba(180,176,160,0.6)'; ctx.lineWidth=0.8;
+    ctx.save(); ctx.translate(bx,by); ctx.rotate(Math.PI/4);
+    ctx.beginPath(); ctx.moveTo(-h+2,0); ctx.lineTo(h-2,0); ctx.stroke();
+    ctx.restore();
   });
-  // Second base
-  ctx.fillStyle=P.offWht;
-  ctx.save(); ctx.translate(F.b2.x,F.b2.y); ctx.rotate(Math.PI/4);
-  ctx.fillRect(-5,-5,10,10); ctx.restore();
 }
 
 function drawBatterBox() {
@@ -504,6 +571,16 @@ function drawBatterBox() {
 
 function drawHomePlate() {
   const px=F.plt.x, py=F.plt.y;
+  // Plate shadow
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath();
+  ctx.moveTo(px+2,    py-8);
+  ctx.lineTo(px+14,   py+2);
+  ctx.lineTo(px+14,   py+12);
+  ctx.lineTo(px-10,   py+12);
+  ctx.lineTo(px-10,   py+2);
+  ctx.closePath(); ctx.fill();
+  // Plate body
   ctx.fillStyle=P.chalk;
   ctx.beginPath();
   ctx.moveTo(px,       py-10);
@@ -514,6 +591,9 @@ function drawHomePlate() {
   ctx.closePath(); ctx.fill();
   ctx.strokeStyle='#B0ACA0'; ctx.lineWidth=1;
   ctx.stroke();
+  // Center seam
+  ctx.strokeStyle='rgba(160,155,140,0.5)'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.moveTo(px, py-9); ctx.lineTo(px, py+9); ctx.stroke();
 }
 
 function drawStrikeZone(alpha) {
@@ -1115,13 +1195,15 @@ function drawResultPopup() {
   if(state.flashTimer <= 0 || state.phase !== 'result') return;
   const a = Math.min(1, state.flashTimer / 400);
   const scale = lerp(0.6, 1.0, easeOut(1 - state.flashTimer / 950));
+  const isHR  = state.lastOutcome === 'hr';
   ctx.save();
   ctx.globalAlpha = a;
-  ctx.translate(LW/2, LH*0.38);
+  ctx.translate(LW/2, LH*0.36);
   ctx.scale(scale, scale);
-  // Dark backing pill
-  const tw = state.flashMsg.length * 7.5;
-  $(~~(-tw*0.5 - 8), -16, ~~(tw+16), 26, 'rgba(0,0,0,0.65)');
+  // Dark backing pill (taller when HR to fit distance)
+  const tw  = state.flashMsg.length * 7.5;
+  const ph  = isHR ? 46 : 26;
+  $(~~(-tw*0.5 - 8), -16, ~~(tw+16), ph, 'rgba(0,0,0,0.70)');
   // Shadow text
   ctx.fillStyle = P.black;
   ctx.font = 'bold 18px monospace';
@@ -1130,6 +1212,17 @@ function drawResultPopup() {
   // Coloured text
   ctx.fillStyle = state.flashColor;
   ctx.fillText(state.flashMsg, 0, 0);
+  // HR distance tag
+  if(isHR && state.hrDistance > 0) {
+    // distance banner beneath main text
+    const distStr = `${state.hrDistance} FT`;
+    ctx.font = 'bold 13px monospace';
+    // gold bar
+    const bw = distStr.length * 8 + 16;
+    $(~~(-bw/2), 8, bw, 18, P.gold);
+    ctx.fillStyle = P.navy;
+    ctx.fillText(distStr, 0, 22);
+  }
   ctx.restore();
 }
 
@@ -1258,6 +1351,11 @@ function applyOutcome(outcome) {
     state.contactY = lerp(BALL_START.y, BALL_END.y, state.pitchT)
                    - Math.sin(state.pitchT*Math.PI)*18;
     if(outcome==='hr'){
+      // Distance: closer to perfect center → farther ball
+      const pCenter = (PERFECT_MIN + PERFECT_MAX) / 2;
+      const spread  = (PERFECT_MAX - PERFECT_MIN) / 2;
+      const fromCtr = Math.abs(state.pitchT - pCenter) / spread; // 0=dead center, 1=edge
+      state.hrDistance = Math.round(lerp(445, 385, fromCtr) + (Math.random()-0.5)*18);
       setTimeout(sndHR,200);
       setTimeout(()=>sndCrowdCheer(1.0), 300);
       spawnConfetti();
